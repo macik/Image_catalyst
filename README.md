@@ -1,5 +1,10 @@
-Image Catalyst
-==============
+#  #Image Catalyst v2.3 
+===================
+
+>  readme translation by macik   
+>  For latest version link see http://x128.ho.ua/update.ini 
+>  See http://rghost.ru/51256939 - for version 2.3 from 28.12.2014   
+>  This utils pack distributed AS IS. To see certain licences or manuals see utilities officeal sites.
 
 Pack of Windows utils to optimize (lossless compression) graphic files (JPEG and PNF formats). 
 Using it is as good practice if you work with web page graphics (sprites and stand alone files).
@@ -24,28 +29,26 @@ Read this instructions.
 Tools for PNG optimizing:
 --------------------------
 
-  - AdvDef (part of AdvanceComp 1.15 from 01.11.2005);
+  - AdvDef (from AdvanceComp 1.18 from 17.11.2013);
   - DeflOpt 2.07 from 05.09.2007;
   - Defluff 0.3.2 from 07.04.2011;
-  - PNGOut from 02.07.2011;
-  - TruePNG 0.4.0.4 from 06.04.2012.
+  - PNGWolf from 11.03.2011 / 28.05.2013;
+  - TruePNG 0.4.1.1 from 27.10.2013.
 
 
 Tools for JPG optimizing:
 -------------------------
 
-  - JHead 2.95 from 16.03.2012;
-  - JPGCrush from 29.11.2008 / 20.04.2012;
-  - JPEGTran (part of LibJPEG 8d from 15.01.2012);
+  - JHead 2.97 from 30.01.2013;
+  - JPEGRescan from 28.12.2013;
+  - JPEGTran (from LibJPEG 9 bundle from 13.01.2013);
 
 
 Addition software:
 ------------------
 
   - DlgMsgBox from 29.02.2012;
-  - JType from 09.02.2012;
-  - MiniPerl (as part of Denwer 3 from 07.11.2010);
-  - Zlib 1.2.6 from 29.01.2012.
+  - Perl (from XAMPP Lite 1.8.1);
 
 All util files packed with UPX.
 

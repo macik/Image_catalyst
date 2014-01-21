@@ -1,16 +1,18 @@
 @echo off
 >nul chcp 866
 
-::Lorents & Res2001 2010-2012
+::Lorents & Res2001 2010-2013
 
 setlocal enabledelayedexpansion
+
 if "%~1" equ "thrt" call:threadwork "%~2" %3 %4 & exit /b
 ::if "%~1" equ "thrt" echo on & 1>>%4.log 2>&1 call:threadwork "%~2" %3 %4 & exit /b
 if "%~1" equ "updateic" call:icupdate & exit /b
+if "%~1" equ "" call:helpmsg
 
 set "name=Image Catalyst"
-set "version=2.2"
-title [Loading] %name% %version%
+set "version=2.3"
+title %name% %version%
 
 set "fullname=%~0"
 set "scrpath=%~dp0"
@@ -18,40 +20,52 @@ set "sconfig=%scrpath%tools\"
 set "scripts=%scrpath%tools\scripts\"
 set "tmppath=%TEMP%\%name%\"
 set "errortimewait=30"
+set "iclock=%TEMP%ic.lck"
 
-if exist "%systemroot%\system32\tasklist.exe" (
-	for /f "tokens=* delims=" %%a in ('tasklist /v /fi "imagename eq cmd.exe" ^| find /c "%name%" ') do (
-		if %%a equ 1 if exist "%tmppath%" 1>nul 2>&1 rd /s /q "%tmppath%"
-	)
+:::::::::::BEGIN:Проверка, не запущен ли уже IC
+set "runic="
+::1.Ожидани завершение запущенного экземпляра IC. Все последующие IC, будут ждать, когда завершат работу предыдущие экземпляры.
+::call:runningcheck "%~nx0"
+::2.Все экземпляры IC работают одновременно. Второй и последующие экземпляры выводят информационное сообщение, что они не первые.
+call:runic "%~nx0"
+if defined runic (
+	title [Waiting] %name% %version%
+	1>&2 echo ───────────────────────────────────────────────────────────────────────────────
+	1>&2 echo  Внимание: запущено %runic% экземпляра %name%.
+	1>&2 echo.
+	1>&2 echo  Для продолжения нажмите на Enter.
+	1>&2 echo ───────────────────────────────────────────────────────────────────────────────
+	pause>nul
+	cls
 )
+:::::::::::END:Проверка, не запущен ли уже IC
+if not defined runic if exist "%tmppath%" 1>nul 2>&1 rd /s /q "%tmppath%"
 
 set "apps=%~dp0Tools\apps\"
 PATH %apps%;%PATH%
 set "nofile="
-if not exist "%apps%advdef.exe" set "nofile=%nofile%advdef.exe "
-if not exist "%apps%deflopt.exe" set "nofile=%nofile%deflopt.exe "
-if not exist "%apps%defluff.exe" set "nofile=%nofile%defluff.exe "
-if not exist "%apps%dlgmsgbox.exe" set "nofile=%nofile%dlgmsgbox.exe "
-if not exist "%apps%jhead.exe" set "nofile=%nofile%jhead.exe "
-if not exist "%apps%jpegtran.exe" set "nofile=%nofile%jpegtran.exe "
-if not exist "%apps%jtype.exe" set "nofile=%nofile%jtype.exe "
-if not exist "%apps%miniperl.exe" set "nofile=%nofile%miniperl.exe "
-if not exist "%apps%pngout.exe" set "nofile=%nofile%pngout.exe "
-if not exist "%apps%truepng.exe" set "nofile=%nofile%truepng.exe "
-if not exist "%apps%zlib.dll" set "nofile=%nofile%zlib.dll "
-if not exist "%sconfig%config.ini" set "nofile=%nofile%config.ini "
-if not exist "%scripts%jpegrescan.pl" set "nofile=%nofile%jpegrescan.pl "
-if not exist "%scripts%xmlhttprequest.js" set "nofile=%nofile%xmlhttprequest.js "
-if not exist "%scripts%filter.js" set "nofile=%nofile%filter.js "
+if not exist "%scripts%filelist.txt" (
+	title [Error] %name% %version%
+	if exist "%tmppath%" 1>nul 2>&1 rd /s /q "%tmppath%"
+	1>&2 echo ───────────────────────────────────────────────────────────────────────────────
+	1>&2 echo  Приложение не смогло получить доступ к следующим файлам:
+	1>&2 echo.
+	1>&2 echo  - Tools\Scripts\filelist.txt
+	1>&2 echo.
+	1>&2 echo  Для выхода из приложения нажмите на Enter.
+	1>&2 echo ───────────────────────────────────────────────────────────────────────────────
+	pause>nul & exit
+)
+for /f "usebackq tokens=*" %%a in ("%scripts%filelist.txt") do if not exist "%scrpath%%%~a" set "nofile=!nofile!"%%~a" "
 if defined nofile (
 	title [Error] %name% %version%
 	if exist "%tmppath%" 1>nul 2>&1 rd /s /q "%tmppath%"
 	1>&2 echo ───────────────────────────────────────────────────────────────────────────────
-	1>&2 echo  Application can not get access to these files:
+	1>&2 echo  Приложение не смогло получить доступ к следующим файлам:
 	1>&2 echo.
-	for %%j in (%nofile%) do 1>&2 echo  - %%j
+	for %%j in (%nofile%) do 1>&2 echo  - %%~j
 	1>&2 echo.
-	1>&2 echo  Press Enter to exit.
+	1>&2 echo  Для выхода из приложения нажмите на Enter.
 	1>&2 echo ───────────────────────────────────────────────────────────────────────────────
 	pause>nul & exit
 )
@@ -60,7 +74,7 @@ if defined nofile (
 set "rnd=%random%"
 if not exist "%tmppath%%rnd%\" (
 	set "tmppath=%tmppath%%rnd%"
-	1>nul 2>&1 md "%tmppath%%rnd%" || call:errormsg "Can not create temporary folder:^|%tmppath%%rnd%!"
+	1>nul 2>&1 md "%tmppath%%rnd%" || call:errormsg "Не возможно создать временный каталог:^|%tmppath%%rnd%!"
 ) else goto:settemp
 
 set "ImageNumPNG=0"
@@ -88,36 +102,23 @@ set "iculog=%tmppath%\icu.log"
 set "iculck=%tmppath%\icu.lck"
 set "countPNG=%tmppath%\countpng"
 set "countJPG=%tmppath%\countjpg"
-set "filelist=%tmppath%\filelist.txt"
-set "filelisterr=%tmppath%\fileerr.txt"
-set "isfilter="
-
+set "filelist=%tmppath%\filelist"
+set "filelisterr=%tmppath%\filerr"
 set "params="
-if "%~1" equ "" (
-	dlgmsgbox.exe "Image Catalyst" "File1" " " "Graphic files (*.png;*.jpg;*.jpeg;*.jpe)" | cscript //nologo //E:JScript "%scripts%filter.js" 1>>"%filelist%" 2>>"%filelisterr%" || set "isfilter=1"
-	if exist "%filelist%" for %%b in ("%filelist%") do if %%~zb gtr 0  (
-		for /f "usebackq tokens=* delims=" %%a in ("%filelist%") do set "params=!params! "%%~a""
-		if defined params for %%a in (!params!) do echo.[%%a]>>"%filelist%"
-	)
-	if not defined params (
-		if not defined isfilter (
-			call:errormsg "There are no files for optimization!"
-			if exist "%tmppath%" 1>nul 2>&1 rd /s /q "%tmppath%"
-			pause>nul & exit /b
-		) else goto:endgettototalnum
-	)
-	set "params=!params:~1!"
-)
 
 ::Чтение переменных из config.ini
-set "fs=" & set "threadpng=" & set "updatecheck=" & set "outdir=" & set "outdir1="
+set "fs=" & set "threadjpg=" & set "threadpng=" & set "updatecheck=" & set "outdir=" & set "outdir1=" & set "nooutfolder="
 set "sec-jpeg=" & set "dt="
 set "na=" & set "nc=" & set "chunks="
 call:readini "%configpath%"
 if /i "%fs%" equ "true" (set "fs=/s") else (set "fs=")
 call:sethread %threadpng% & set "threadpng=!thread!" & set "thread="
+call:sethread %threadjpg% & set "threadjpg=!thread!" & set "thread="
+::if "%threadjpg%" equ "0" (set /a "threadjpg=2*%thread%") else set "threadjpg=!thread!"
+::set "thread="
 set "updatecheck=%update%" & set "update="
 call set "outdir=%outdir%"
+if /i "%outdir%" equ "true" (set "outdir=" & set "nooutfolder=yes") else if /i "%outdir%" equ "false" set "outdir="
 if /i "%dt%" equ "true" (set "ft=-ft") else (set "ft=")
 if /i "%dc%" equ "true" set "sec-jpeg=-dc" & set "dc="
 if /i "%de%" equ "true" set "sec-jpeg=%sec-jpeg% -de" & set "de="
@@ -126,88 +127,49 @@ if /i "%dx%" equ "true" set "sec-jpeg=%sec-jpeg% -dx" & set "dx="
 if /i "%du%" equ "true" set "sec-jpeg=%sec-jpeg% -du" & set "du="
 if /i "%nc%" equ "false" (set "nc=-nc") else (set "nc=")
 
-set "threadjpg=1"
-if %threadpng% equ 1 (set "multithread=0") else (set "multithread=1")
+set "multithread=0"
+if %threadpng% gtr 1 set "multithread=1"
+if %threadjpg% gtr 1 set "multithread=1"
 
-::Создание списка обрабатываемых и пропускаемых файлов.
-if defined params goto:gettotalnum2
-set "isinitfirst=1"
-
-:gettotalnum
-if "%~1" equ "" goto:gettotalnum2
-setlocal disabledelayedexpansion
-goto:initsource
-
-:initfirst
-set "var=%~f1"
-set "isfilter1="
-echo."%~f1" | cscript //nologo //E:JScript "%scripts%filter.js" 1>nul 2>&1 || set "isfilter1=1"
-if not defined isfilter1 (
-	echo.["%~f1"]>>"%filelist%"
-	if defined ispng (
-		if not defined isfolder (
-			if exist "%~f1" (echo."%~f1" | cscript //nologo //E:JScript "%scripts%filter.js" 1>>"%filelist%" 2>>"%filelisterr%" || set "isfilter1=1")
-		) else (
-			dir /b %fs% /a-d-h "%~f1\*.png" 2>nul | cscript //nologo //E:JScript "%scripts%filter.js" 1>>"%filelist%" 2>>"%filelisterr%" || set "isfilter1=1"
-		)
-	)
-	if defined isjpeg (
-		if not defined isfolder (
-			if exist "%~f1" (echo."%~f1" | cscript //nologo //E:JScript "%scripts%filter.js" 1>>"%filelist%" 2>>"%filelisterr%" || set "isfilter1=1")
-		) else (
-			dir /b %fs% /a-d-h "%~f1\*.jpg" "%~f1\*.jpe" 2>nul | cscript //nologo //E:JScript "%scripts%filter.js" 1>>"%filelist%" 2>>"%filelisterr%" || set "isfilter1=1"
-		)
-	)
-) else (
-	if defined isfolder (
-		dir /b %fs% /a-d-h "%~1\*.png" "%~1\*.jpg" "%~1\*.jpe" 2>nul 1>>"%filelisterr%"
-	) else echo."%~f1">>"%filelisterr%"
-)
-setlocal enabledelayedexpansion
-if defined isfilter1 set "isfilter=%isfilter1%"
-shift
-goto:gettotalnum
-
-:gettotalnum2
-set "isinitfirst="
-set "isfilter1="
-::Подсчет общего количества обрабатываемых и пропускаемых файлов в разрезе png/jpg
-if exist "%filelist%" (
-	for /f "delims=" %%a in ('findstr /v /b "[" "%filelist%" ^| find /i /c ".png" 2^>nul') do set /a "TotalNumPNG+=%%a"
-	for /f "delims=" %%a in ('findstr /v /b "[" "%filelist%" ^| find /i /c ".jpg" 2^>nul') do set /a "TotalNumJPG+=%%a"
-	for /f "delims=" %%a in ('findstr /v /b "[" "%filelist%" ^| find /i /c ".jpe" 2^>nul') do set /a "TotalNumJPG+=%%a"
-)
-if exist "%filelisterr%" (
-	for /f "delims=" %%a in ('findstr /v /b "[" "%filelisterr%" ^| find /i /c ".png" 2^>nul') do set /a "TotalNumErrPNG+=%%a"
-	for /f "delims=" %%a in ('findstr /v /b "[" "%filelisterr%" ^| find /i /c ".jpg" 2^>nul') do set /a "TotalNumErrJPG+=%%a"
-	for /f "delims=" %%a in ('findstr /v /b "[" "%filelisterr%" ^| find /i /c ".jpe" 2^>nul') do set /a "TotalNumErrJPG+=%%a"
-)
-
-:endgettototalnum
-if %TotalNumPNG% equ 0 if %TotalNumJPG% equ 0 (
-	if defined isfilter  (
-		set "jpeg=0" & set "png=0"
-		cls
-		echo _______________________________________________________________________________
-		echo.
-		call:end & >nul pause & exit /b
-	) else call:errormsg "No files to optimize!"
-)
-if "%TotalNumPNG%" equ "0" set "multithread=0"
-
-if not defined outdir (
-	for /f "tokens=* delims=" %%a in ('dlgmsgbox.exe "Image Catalyst" "Folder3" " " "Select folder for output files:" ') do set "outdir=%%~a"
+if not defined nooutfolder if not defined outdir (
+	title [Loading] %name% %version%
+	for /f "tokens=* delims=" %%a in ('dlgmsgbox "Image Catalyst" "Folder3" " " "Выберите каталог назначения:" ') do set "outdir=%%~a"
 )
 if defined outdir (
 	if "!outdir:~-1!" neq "\" set "outdir=!outdir!\"
-	if not exist "!outdir!" (1>nul 2>&1 md "!outdir!" || call:errormsg "Can not create folder for optimized files:^|!outdir! !")
+	if not exist "!outdir!" (1>nul 2>&1 md "!outdir!" || call:errormsg "Не возможно создать каталог оптимизированных файлов:^|!outdir!^!")
+	for /f "tokens=* delims=" %%a in ("!outdir!") do set outdirparam="/Outdir:%%~a"
+) else set "outdirparam="
+
+if "%~1" equ "" (
+::	call:notparam
+	goto:setcounters
 )
+cscript //nologo //E:JScript "%scripts%filter.js" %outdirparam% %* 1>"%filelist%" 2>"%filelisterr%"
+:setcounters
+::Подсчет общего количества обрабатываемых и пропускаемых файлов в разрезе png/jpg 
+if exist "%filelist%" (
+	for /f "tokens=3 delims=:" %%a in ('find /i /c ".png" "%filelist%" 2^>nul') do set /a "TotalNumPNG+=%%a"
+	for /f "tokens=3 delims=:" %%a in ('find /i /c ".jpg" "%filelist%" 2^>nul') do set /a "TotalNumJPG+=%%a"
+	for /f "tokens=3 delims=:" %%a in ('find /i /c ".jpe" "%filelist%" 2^>nul') do set /a "TotalNumJPG+=%%a"
+)
+if exist "%filelisterr%" (
+	for /f "tokens=3 delims=:" %%a in ('find /i /c ".png" "%filelisterr%" 2^>nul') do set /a "TotalNumErrPNG+=%%a"
+	for /f "tokens=3 delims=:" %%a in ('find /i /c ".jpg" "%filelisterr%" 2^>nul') do set /a "TotalNumErrJPG+=%%a"
+	for /f "tokens=3 delims=:" %%a in ('find /i /c ".jpe" "%filelisterr%" 2^>nul') do set /a "TotalNumErrJPG+=%%a"
+)
+
+if %TotalNumPNG% equ 0 if %TotalNumJPG% equ 0 (
+	1>&2 echo ───────────────────────────────────────────────────────────────────────────────
+	1>&2 echo  Файлов для оптимизации не найдено.
+	call:helpmsg
+)
+::if "%TotalNumPNG%" equ "0" set "multithread=0"
 
 ::ввод параметров оптимизации
 if %TotalNumPNG% gtr 0 if not defined png call:png
 if %TotalNumJPG% gtr 0 if not defined jpeg call:jpeg
 
-if "%png%" equ "0" set "multithread=0"
 if %multithread% neq 0 (
 	for /l %%a in (1,1,%threadpng%) do >"%logfile%png.%%a" echo.
 	for /l %%a in (1,1,%threadjpg%) do >"%logfile%jpg.%%a" echo.
@@ -220,10 +182,6 @@ if /i "%na%" equ "false" (
 ) else (
 	if %png% equ 1 set "na=-a1"
 	if %png% equ 2 set "na=-a0"
-	if %png% equ 3 set "na=-a1"
-	if %png% equ 4 set "na=-a0"
-	if %png% equ 5 set "na=-a1"
-	if %png% equ 6 set "na=-a0"
 )
 cls
 echo _______________________________________________________________________________
@@ -231,27 +189,75 @@ echo.
 if /i "%updatecheck%" equ "true" start "" /b cmd.exe /c ""%fullname%" updateic"
 call:setitle
 call:setvtime stime
-for /f "tokens=1 delims=[]" %%a in ('findstr /b "[" "%filelist%" ') do if exist "%%~a" (
+set "outdirs="
+for /f "usebackq tokens=1 delims=	" %%a in ("%filelist%") do (
 	call:initsource "%%~a"
-	if defined outdir (
-		if defined isfolder (
-			set "var=%%~fa"
-			if "!var:~-1!" equ "\" set "var=!var:~,-1!"
-			for %%b in (!var!) do call:getfilename "%outdir%%%~nxb"
-			set "outdir1=!getfilename!"
-		) else set "outdir1=%outdir%"
-	)
-	if defined ispng if "%png%" neq "0" call:pngwork "%%~a"
-	if defined isjpeg if "%jpeg%" neq "0" call:jpegwork "%%~a"
+	if defined ispng if "%png%" neq "0" call:filework "%%~fa" png %threadpng% ImageNumPNG
+	if defined isjpeg if "%jpeg%" neq "0" call:filework "%%~fa" jpg %threadjpg% ImageNumJPG
 )
 
 :waithread
-set "thrt="
-for /l %%z in (1,1,%threadpng%) do if exist "%tmppath%\thrtpng%%z.lck" (set "thrt=1") else (call:typelog & call:setitle)
-for /l %%z in (1,1,%threadjpg%) do if exist "%tmppath%\thrtjpg%%z.lck" (set "thrt=1") else (call:typelog & call:setitle)
-if defined thrt call:waitrandom 1000 & goto:waithread
+call:waitflag "%tmppath%\thrt*.lck"
+for /l %%z in (1,1,%threadpng%) do call:typelog png %%z
+for /l %%z in (1,1,%threadjpg%) do call:typelog jpg %%z
+call:setitle
+::set "thrt="
+::for /l %%z in (1,1,%threadpng%) do if exist "%tmppath%\thrtpng%%z.lck" (set "thrt=1") else (call:typelog & call:setitle)
+::for /l %%z in (1,1,%threadjpg%) do if exist "%tmppath%\thrtjpg%%z.lck" (set "thrt=1") else (call:typelog & call:setitle)
+::if defined thrt call:waitrandom 1000 & goto:waithread
+cscript //nologo //E:JScript "%scripts%unfilter.js" <"%filelist%"
 call:end
 pause>nul & exit /b
+
+::Проверка не запущен ли еще один экземпляр IC. Если запущен - ждем завершения.
+::Второй запущенный процесс создает блокировочный файл %iclock% и ожидает завершения первого IC.
+::Все остальные ожидают освобождения блокировочного файла.
+::Когда первый IC заканчивает работу, второй выходит из ожидания и отпускает блокировочный файл.
+::Первый из остальных IC, кто успел захватить файл, будет следующим в очереди на обработку.
+::Параметры: %1	-	строка для поиска процесса
+:runningcheck
+call:runic "%~1"
+set "lastrunic=%runic%"
+if defined runic (
+	title [Waiting] %name% %version%
+	echo.Запущено больше одного процесса %name%. Ждем завершения.
+	call:runningcheck2 "%~1"
+)
+exit /b
+
+::Второй этап ожидания
+:runningcheck2
+2>nul (
+	3>"%iclock%" 1>&3 call:runic2 "%~1" || (call:waitrandom 5000 & goto:runningcheck2)
+)
+exit /b
+
+::Цикл ожидания для второго процесса IC
+:runic2
+call:waitrandom 5000
+call:runic "%~1"
+if defined runic (
+	if %runic% lss %lastrunic% exit /b 0
+	set "lastrunic=%runic%"
+	goto:runic2
+)	
+exit /b 0
+
+::Проверяем с помощью wmic запущено ли больше одного экземпляра IC. 
+::Если да, то выставляем переменную runic в значение, равное количеству запущенных экземпляров IC.
+::Параметры: %1	-	строка для поиска процесса
+:runic
+set "runic="
+if exist "%systemroot%\system32\wbem\wmic.exe" (
+	for /f "tokens=* delims=" %%a in ('wmic path win32_process where "CommandLine like '%%%~1%%'" get CommandLine /value ^| findstr /i /c:"%~1" ^| findstr /i /c:"cmd" ^| findstr /i /v "find findstr wmi thrt updateic" ^| find /i /c "%~1" ') do (
+		if %%a gtr 1 set "runic=%%a"
+))
+exit /b
+
+::Выводит диалоговое окно выбора файлов при отсутствии параметров.
+:notparam
+dlgmsgbox "Image Catalyst" "File1" " " "Все форматы ^(*.png;*.jpg;*.jpeg;*.jpe^)^|JPEG ^(*.jpg;*.jpeg;*.jpe^)^|PNG ^(*.png^)" |	cscript //nologo //E:JScript "%scripts%filter.js" %outdirparam% /IsStdIn:yes 1>"%filelist%" 2>"%filelisterr%"
+exit /b
 
 ::Установка значения переменной, имя которой передано в %1, в текущую дату/время в формате для вывода итогов
 ::Параметры: нет
@@ -277,38 +283,34 @@ exit /b
 ::	%3 - путь к обрабатываемому файлу
 ::Возвращаемые значения: нет
 :createthread
-if %2 equ 1 call:threadwork %3 %1 1 & call:typelog & exit /b
+if %2 equ 1 call:threadwork %3 %1 1 & call:typelog %1 1 & exit /b
 for /l %%z in (1,1,%2) do (
 	if not exist "%tmppath%\thrt%1%%z.lck" (
-		call:typelog
-		>"%tmppath%\thrt%1%%z.lck" echo Process file: %3
+		call:typelog %1 %%z
+		>"%tmppath%\thrt%1%%z.lck" echo Обработка файла: %3
 		start /b cmd.exe /s /c ""%fullname%" thrt "%~3" %1 %%z"
 		exit /b
 	)
 )
-call:waitrandom 1000
+call:waitrandom 500
 goto:createthread
 
 ::Перебор файлов для вывода статистики для многопоточного режима. Данные читаются из %logfile%*.
-::Параметры: нет
+::Параметры: 
+::	%1 - png | jpg
+::	%2 - номер файла данного вида для вывода
 ::Возвращаемые значения: нет
 :typelog
 if %multithread% equ 0 exit /b
-for /l %%c in (1,1,%threadpng%) do (
-	if not defined typenumpng%%c set "typenumpng%%c=1"
-	call:typelogfile "%logfile%png.%%c" "typenumpng%%c" %%typenumpng%%c%% TotalNumErrPNG
-)
-for /l %%c in (1,1,%threadjpg%) do (
-	if not defined typenumjpg%%c set "typenumjpg%%c=1"
-	call:typelogfile "%logfile%jpg.%%c" "typenumjpg%%c" %%typenumjpg%%c%% TotalNumErrJPG
-)
+if not defined typenum%1%2 set "typenum%1%2=1"
+call:typelogfile "%logfile%%1.%2" "typenum%1%2" %%typenum%1%2%% %1
 exit /b
 
 ::Чтение файла и разбор строк для вывода статистики для многопоточного режима.
 ::Параметры:	%1 - файл в формате images.csv
 ::		%2 - имя переменной, в которой хранится количество обработанных строк в данном файле
 ::		%3 - количество обработанных строк в данном файле
-::		%4 - TotalNumErrJPG | TotalNumErrPNG
+::		%4 - JPG | PNG
 ::Возвращаемые значения: нет
 :typelogfile
 if not exist "%~1" exit /b
@@ -318,7 +320,8 @@ for /f "skip=%3 tokens=1-5 delims=;" %%b in ('type "%~1" ') do (
 		1>&2 echo  Error - %%c
 		1>&2 echo._______________________________________________________________________________
 		1>&2 echo.
-		set /a "%4+=1"
+		set /a "TotalNumErr%4+=1"
+		set /a "TotalNum%4-=1"
 	) else (
 		call:printfileinfo "%%~b" %%c %%d %%e %%f
 	)
@@ -343,7 +346,7 @@ set "change=%4"
 call:division change 1024 100
 set "float=%3"
 call:division float 1024 100
-echo  Out   - %float% Kb ^(%change% Kb, %5%%^)
+echo  Out   - %float% КБ ^(%change% КБ, %5%%^)
 echo _______________________________________________________________________________
 echo.
 exit /b
@@ -356,7 +359,7 @@ exit /b
 ::Возвращаемые значения: нет
 :threadwork
 if /i "%2" equ "png" call:pngfilework %1 %3 & if %multithread% neq 0 >>"%countPNG%.%3" echo.1
-if /i "%2" equ "jpg" call:jpegfilework %1 %3
+if /i "%2" equ "jpg" call:jpegfilework %1 %3 & if %multithread% neq 0 >>"%countJPG%.%3" echo.1
 if exist "%tmppath%\thrt%2%3.lck" >nul 2>&1 del /f /q "%tmppath%\thrt%2%3.lck"
 exit /b
 
@@ -364,7 +367,7 @@ exit /b
 ::Параметры: %1 - путь к файлу флагу.
 ::Возвращаемые значения: нет
 :waitflag
-if not exist "%~1" (>"%~1" echo.%~2 & exit /b)
+if not exist "%~1" exit /b
 call:waitrandom 2000
 goto:waitflag
 
@@ -377,34 +380,26 @@ set /a "ww=%random%%%%1"
 exit /b
 
 ::Процедура инициализации переменных для очередного источника обработки.
-::Параметры: %1 - путь к источнику обработки (файлу или папке).
+::Параметры: %1 - путь к файлу.
 ::Возвращаемые значения: проинициализированные переменные isjpeg, ispng, isfolder.
 :initsource
 set "isjpeg="
 set "ispng="
 set "isfolder="
-1>nul 2>&1 dir /ad "%~1" && set "isfolder=1"
-if not defined isfolder (
-	if /i "%~x1" equ ".png" set "ispng=1"
-	if /i "%~x1" equ ".jpg" set "isjpeg=1"
-	if /i "%~x1" equ ".jpeg" set "isjpeg=1"
-	if /i "%~x1" equ ".jpe" set "isjpeg=1"
-) else (
-	1>nul 2>nul dir /b %fs% /a-d-h "%~1\*.png" && set "ispng=1"
-	1>nul 2>nul dir /b %fs% /a-d-h "%~1\*.jpg" "%~1\*.jpe" && set "isjpeg=1"
-)
-if defined isinitfirst (goto:initfirst) else exit /b
+if /i "%~x1" equ ".png" set "ispng=1"
+if /i "%~x1" equ ".jpg" set "isjpeg=1"
+if /i "%~x1" equ ".jpeg" set "isjpeg=1"
+if /i "%~x1" equ ".jpe" set "isjpeg=1"
+exit /b
 
 ::Установка количества потоков для многопоточной обработки. 
 ::Параметры: %1 - предлагаемое количество потоков (может отсутствовать).
 ::Возвращаемые значения: проинициализированная переменная thread.
 :sethread
-if "%~1" equ "" (
-	set "thread=%NUMBER_OF_PROCESSORS%"
-) else (
-	set /a "thread=%~1+1-1"
-	if "!thread!" equ "0" set "thread=%NUMBER_OF_PROCESSORS%"
-)
+if "%~1" neq "" if "%~1" neq "0" set "thread=%~1" & exit /b
+set /a "thread=%~1+1-1"
+if "!thread!" equ "0" set "thread=%NUMBER_OF_PROCESSORS%"
+::if %thread% gtr 2 set /a "thread-=1"
 exit /b
 
 ::Ввод параметров оптимизации png файлов. 
@@ -414,28 +409,21 @@ exit /b
 cls
 title [PNG: %TotalNumPNG%] %name% %version%
 echo  ─────────────────────────
-echo  PNG optimization mode:
+echo  Параметр оптимизации PNG:
 echo  ─────────────────────────
 echo.
-echo  Non-interlaced:
 echo  [1] Xtreme	[2] Advanced
 echo.
-echo  Interlaced:
-echo  [3] Xtreme	[4] Advanced
-echo.
-echo  Default:
-echo  [5] Xtreme	[6] Advanced
-echo.
-echo  [0] Skip PNG optimization
+echo  [0] Пропустить оптимизацию изображений формата PNG
 echo.
 set png=
 echo  ─────────────────────────────────────────────────────────────
-set /p png="#Select PNG optimization mode and press Enter [0-8]: "
+set /p png="#Укажите параметр оптимизации PNG и нажмите на Enter [0-2]: "
 echo  ─────────────────────────────────────────────────────────────
 echo.
 if "%png%" equ "" goto:png
 if "%png%" equ "0" exit /b
-if "%png%" neq "1" if "%png%" neq "2" if "%png%" neq "3" if "%png%" neq "4" if "%png%" neq "5" if "%png%" neq "6" if "%png%" neq "7" if "%png%" neq "8" goto:png
+if "%png%" neq "1" if "%png%" neq "2" goto:png
 exit /b
 
 ::Ввод параметров оптимизации jpg файлов. 
@@ -445,18 +433,18 @@ exit /b
 cls
 title [JPEG: %TotalNumJPG%] %name% %version%
 echo  ──────────────────────────
-echo  JPEG optimization mode:
+echo  Параметр оптимизации JPEG:
 echo  ──────────────────────────
 echo.
 echo  [1] Optimize	[2] Progressive
 echo.
 echo  [3] Maximum	[4] Default
 echo.
-echo  [0] Skip JPEG optimization
+echo  [0] Пропустить оптимизацию изображений формата JPEG
 echo.
 set jpeg=
 echo  ──────────────────────────────────────────────────────────────
-set /p jpeg="#Select JPEG optimization mode and press Enter [0-4]: "
+set /p jpeg="#Укажите параметр оптимизации JPEG и нажмите на Enter [0-4]: "
 echo  ──────────────────────────────────────────────────────────────
 echo.
 if "%jpeg%" equ "" goto:jpeg
@@ -470,8 +458,9 @@ exit /b
 :setitle
 if "%jpeg%" equ "0" if "%png%" equ "0" (title %~1%name% %version% & exit /b)
 if %multithread% neq 0 (
-	set "ImageNumPNG=0"
+	set "ImageNumPNG=0" & set "ImageNumJPG=0"
 	for /l %%c in (1,1,%threadpng%) do for %%b in ("%countPNG%.%%c") do set /a "ImageNumPNG+=%%~zb/3" 2>nul
+	for /l %%c in (1,1,%threadjpg%) do for %%b in ("%countJPG%.%%c") do set /a "ImageNumJPG+=%%~zb/3" 2>nul
 )
 if "%jpeg%" equ "0" (
 	title %~1[PNG - %png%: %ImageNumPNG%/%TotalNumPNG%] %name% %version%
@@ -484,71 +473,18 @@ if "%jpeg%" equ "0" (
 )
 exit /b
 
-::Обход источника и запуск обработчика для каждого png файла.
-::Параметры: %1 - источник (путь к файлу или папке)
-::Возвращаемые значения: нет
-:pngwork
-set "source=%~f1"
-set "source=%source:\=\\%"
-if defined isfolder for /f "delims=" %%i in ('findstr /v /b "[" "%filelist%" ^| findstr /i /r /c:"%source%.*\.png$" ') do (
-	call:filework "%~f1" "%%~fi" png %threadpng% ImageNumPNG
-) else call:filework "%~f1" "%%~f1" png %threadpng% ImageNumPNG
-exit /b
-
-::Обход источника и запуск обработчика для каждого jpg файла.
-::Параметры: %1 - источник (путь к файлу или папке)
-::Возвращаемые значения: нет
-:jpegwork
-set "source=%~f1"
-set "source=%source:\=\\%"
-if defined isfolder for %%g in (jpg jpe jpeg) do (
-	for /f "delims=" %%i in ('findstr /v /b "[" "%filelist%" ^| findstr /i /r /c:"%source%.*\.%%g$" ') do (
-		call:filework "%~f1" "%%~fi" jpg %threadjpg% ImageNumJPG
-	)
-) else call:filework "%~f1" "%%~f1" jpg %threadjpg% ImageNumJPG
-exit /b
-
-::При заданом %outdir%, копирование исходных файлов в outdir с сохранением структуры каталогов 
-::относительно источника. Запуск обработчика файлов.
+::Запуск обработчика файлов.
 ::Параметры:
-::	%1 - источник (путь к файлу или папке)
-::	%2 - обрабатываемый файл
-::	%3 - png | jpg
-::	%4 - %threadpng% | %threadjpg%
-::	%5 - ImageNumPNG | ImageNumJPG
+::	%1 - обрабатываемый файл
+::	%2 - png | jpg
+::	%3 - %threadpng% | %threadjpg%
+::	%4 - ImageNumPNG | ImageNumJPG
 ::Возвращаемые значения: нет
 :filework
-set "outfile=%~f2"
-if defined outdir (
-	if defined isfolder (
-		call set "outfile=%outdir1%\%%outfile:%~1=%%"
-	) else (
-		call:getfilename "%outdir1%\%%outfile:%~dp1=%%"
-		set "outfile=!getfilename!"
-	)
-	for %%j in ("!outfile!") do 1>nul 2>&1 md "%%~dpj"
-	1>nul 2>&1 copy /y "%~2" "!outfile!"
-)
-call:createthread %3 %4 "%outfile%"
-set /a "%5+=1"
+call:createthread %2 %3 "%~f1"
+set /a "%4+=1"
 call:setitle
 exit /b
-
-::Если файл %1 существует, то к имени файла добавляется порядковый номер в формате: 
-::%~dpn1-NNNN.%~x1
-::Параметры: %1 - путь к файлу
-::Возвращаемые значения: сформированное имя файла в переменной getfilename.
-:getfilename
-set "getfilename=%~1"
-if not exist "%~1" exit /b
-set "countfn=1"
-:gfn
-set "countfile=000%countfn%"
-set "getfilename=%~dpn1-%countfile:~-4%%~x1"
-if not exist "%getfilename%" exit /b
-if %countfn% equ 9999 exit /b 
-set /a "countfn+=1"
-goto:gfn
 
 ::Обработчик png файлов.
 ::Параметры:
@@ -556,57 +492,46 @@ goto:gfn
 ::	%2 - номер потока обработки
 ::Возвращаемые значения: нет
 :pngfilework
+set "zc="
+set "zm="
+set "zs="
 set "errbackup=0"
 set "isinterlaced%2="
 set "logfile2=%logfile%png.%2"
 set pnglog="%tmppath%\png%2.log"
 set "filework=%tmppath%\%~n1-ic%2%~x1"
-1>nul 2>&1 copy /b /y "%~f1" "%filework%" || (call:saverrorlog "%~f1" "File not found" & exit /b)
->%pnglog% 2>nul truepng -info "%filework%"
-if errorlevel 1 (call:saverrorlog "%~f1" "File not supported" & 1>nul 2>&1 del /f /q %filework% & 1>nul 2>&1 del /f /q %pnglog% & exit /b)
+1>nul 2>&1 copy /b /y "%~f1" "%filework%" || (call:saverrorlog "%~f1" "Файл не найден" & exit /b)
+truepng -info "%filework%" >nul
+if errorlevel 1 (
+	call:saverrorlog "%~f1" "Файл не поддерживается"
+	1>nul 2>&1 del /f /q %filework%
+	exit /b
+)
 set "psize=%~z1"
-if %png% equ 1 call:Non-interlaced-Xtreme "%filework%" >nul
-if %png% equ 2 call:Non-interlaced-Advanced "%filework%" >nul
-if %png% equ 3 call:Interlaced-Xtreme "%filework%" >nul & set "isinterlaced=1"
-if %png% equ 4 call:Interlaced-Advanced "%filework%" >nul & set "isinterlaced=1"
-if %png% gtr 4 (
-	find /i "Interlaced" <%pnglog% >nul
-	if errorlevel 1 (
-		if %png% equ 5 call:Non-interlaced-Xtreme "%filework%" >nul
-		if %png% equ 6 call:Non-interlaced-Advanced "%filework%" >nul
-	) else (
-		if %png% equ 5 call:Interlaced-Xtreme "%filework%" >nul
-		if %png% equ 6 call:Interlaced-Advanced "%filework%" >nul
+if %png% equ 1 (
+	>%pnglog% 2>nul truepng -i0 -zc9 -zm4-9 -zs0-3 -f0,5 -fs:2 %nc% %na% -force "%filework%"
+	for /f "tokens=2,4,6,8,10 delims=:	" %%a in ('findstr /r /i /b /c:"zc:..zm:..zs:" %pnglog%') do (
+		set "zc=%%a"
+		set "zm=%%b"
+		set "zs=%%c"
 	)
+	pngwolf --zlib-level=!zc! --zlib-memlevel=!zm! --zlib-strategy=!zs! --max-time=1 --even-if-bigger --in="%filework%" --out="%filework%" 1>nul 2>&1
+	advdef -z4 -i15 "%filework%" 1>nul 2>&1
+	1>nul 2>&1 del /f /q %pnglog%
 )
-if %png% gtr 4 (
-	call:backup "%~f1" "%filework%" >nul || set "errbackup=1"
-) else (
-	set "isinterlaced%2="
-	find /i "Interlaced" <%pnglog% >nul && set "isinterlaced%2=1"
-	if %png% lss 3 (
-		if not defined isinterlaced%2 (
-			call:backup "%~f1" "%filework%" >nul || set "errbackup=1"
-		) else (
-			1>nul 2>&1 move /y "%filework%" "%~f1" || set "errbackup=1"
-		)
-	) else (
-		if defined isinterlaced%2 (
-			call:backup "%~f1" "%filework%" >nul || set "errbackup=1"
-		) else (
-			1>nul 2>&1 move /y "%filework%" "%~f1" || set "errbackup=1"
-		)
-	)
+if %png% equ 2 (
+	truepng -i0 -zc9 -zm8-9 -zs0-1 -f0,5 -fs:7 %nc% %na% -force "%filework%" 1>nul 2>&1
+	advdef -z3 "%filework%" 1>nul 2>&1
 )
-if %errbackup% neq 0 (call:saverrorlog "%~f1" "Access denied or file not exists." & 1>nul 2>&1 del /f /q %filework% %pnglog% & exit /b)
+deflopt -k "%filework%" >nul
+defluff < "%filework%" > "%filework%-defluff.png" 2>nul
+1>nul 2>&1 move /y "%filework%-defluff.png" "%filework%"
+deflopt -k "%filework%" >nul
+call:backup "%~f1" "%filework%" >nul || set "errbackup=1"
+if %errbackup% neq 0 (call:saverrorlog "%~f1" "Отказано в доступе или файл не существует." & 1>nul 2>&1 del /f /q %filework% & exit /b)
 truepng -nz -md %chunks% "%~f1" >nul
-deflopt -k "%~f1" >nul
-defluff < "%~f1" > "%filework%-defluff.png" 2>nul
-1>nul 2>&1 move /y "%filework%-defluff.png" "%~f1"
-deflopt -k "%~f1" >nul
 call:savelog "%~f1" !psize!
 if %multithread% equ 0 for %%a in ("%~f1") do (set /a "ImageSizePNG+=%%~za" & set /a "TotalSizePNG+=%psize%")
-1>nul 2>&1 del /f /q %pnglog% >nul
 exit /b
 
 ::Обработчик jpg файлов.
@@ -620,11 +545,17 @@ set "cm="
 set "errbackup=0"
 set "logfile2=%logfile%jpg.%2"
 set "filework=%tmppath%\%~n1%2%~x1"
-1>nul 2>&1 copy /b /y "%~f1" "%filework%" || (call:saverrorlog "%~f1" "File not found" & exit /b)
-for /f "tokens=*" %%j in ('jtype t "%filework%"') do set ep=%%j
-for /f "tokens=*" %%j in ('jtype c "%filework%"') do set cm=%%j
-if "!ep!" equ "" (call:saverrorlog "%~f1" "Файл не поддерживается" & 1>nul 2>&1 del /f /q "%filework%" & exit /b)
-if "!cm!" equ "" (call:saverrorlog "%~f1" "Файл не поддерживается" & 1>nul 2>&1 del /f /q "%filework%" & exit /b)
+set jpglog="%tmppath%\jpg%2.log"
+1>nul 2>&1 copy /b /y "%~f1" "%filework%" || (call:saverrorlog "%~f1" "Файл не найден" & exit /b)
+jhead -v "%filework%">>%jpglog%
+if errorlevel 1 (call:saverrorlog "%~f1" "Файл не поддерживается" & 1>nul 2>&1 del /f /q "%filework%" & exit /b)
+for /f "tokens=2 delims=," %%a in ('findstr /r /c:"JPEG image is .*w \* .*h, .* color components, .* bits per sample" %jpglog%') do (
+	for /f "tokens=1" %%b in ("%%a") do set "cm=%%b"
+)
+1>nul 2>&1 findstr /c:"Jpeg process : Progressive" %jpglog%
+if %errorlevel% equ 0 (set "ep=Progressive")
+if %errorlevel% equ 1 (set "ep=Baseline")
+del /f /q %jpglog%
 set "jsize=%~z1"
 if %jpeg% equ 1 (
 	jpegtran -copy all -optimize "%filework%" "%filework%" >nul
@@ -632,30 +563,30 @@ if %jpeg% equ 1 (
 	if /i "!ep!" equ "Progressive" 1>nul 2>&1 move /y "%filework%" "%~f1" || set "errbackup=1"
 )
 if %jpeg% equ 2 (
-	if /i "!cm!" equ "CMYK" jpegtran -copy all -progressive "%filework%" "%filework%" >nul
-	if /i "!cm!" equ "RGB" miniperl "%scripts%jpegrescan.pl" jpegtran "%filework%" "%filework%" >nul
-	if /i "!cm!" equ "BW" miniperl "%scripts%jpegrescan.pl" jpegtran "%filework%" "%filework%" >nul
+	if /i "!cm!" equ "4" jpegtran -copy all -progressive "%filework%" "%filework%" >nul
+	if /i "!cm!" equ "3" perl "%scripts%jpegrescan.pl" jpegtran "%filework%" "%filework%" >nul
+	if /i "!cm!" equ "1" perl "%scripts%jpegrescan.pl" jpegtran "%filework%" "%filework%" >nul
 	if /i "!ep!" equ "Baseline" 1>nul 2>&1 move /y "%filework%" "%~f1" || set "errbackup=1"
 	if /i "!ep!" equ "Progressive" call:backup "%~f1" "%filework%" >nul || set "errbackup=1"
 )
 if %jpeg% equ 3 (
 	jpegtran -copy all -optimize "%filework%" "%filework%.opt" >nul
-	if /i "!cm!" equ "CMYK" jpegtran -copy all -progressive "%filework%" "%filework%.pro" >nul
-	if /i "!cm!" equ "RGB" miniperl "%scripts%jpegrescan.pl" jpegtran "%filework%" "%filework%.pro" >nul
-	if /i "!cm!" equ "BW" miniperl "%scripts%jpegrescan.pl" jpegtran "%filework%" "%filework%.pro" >nul
+	if /i "!cm!" equ "4" jpegtran -copy all -progressive "%filework%" "%filework%.pro" >nul
+	if /i "!cm!" equ "3" perl "%scripts%jpegrescan.pl" jpegtran "%filework%" "%filework%.pro" >nul
+	if /i "!cm!" equ "1" perl "%scripts%jpegrescan.pl" jpegtran "%filework%" "%filework%.pro" >nul
 	call:backup "%~f1" "%filework%.opt" >nul || set "errbackup=1"
 	call:backup "%~f1" "%filework%.pro" >nul || set "errbackup=1"
 )
 if %jpeg% equ 4 (
 	if /i "!ep!" equ "Baseline" jpegtran -copy all -optimize "%filework%" "%filework%" >nul
 	if /i "!ep!" equ "Progressive" (
-		if /i "!cm!" equ "CMYK" jpegtran -copy all -progressive "%filework%" "%filework%" >nul
-		if /i "!cm!" equ "RGB" miniperl "%scripts%jpegrescan.pl" jpegtran "%filework%" "%filework%" >nul
-		if /i "!cm!" equ "BW" miniperl "%scripts%jpegrescan.pl" jpegtran "%filework%" "%filework%" >nul
+		if /i "!cm!" equ "4" jpegtran -copy all -progressive "%filework%" "%filework%" >nul
+		if /i "!cm!" equ "3" perl "%scripts%jpegrescan.pl" jpegtran "%filework%" "%filework%" >nul
+		if /i "!cm!" equ "1" perl "%scripts%jpegrescan.pl" jpegtran "%filework%" "%filework%" >nul
 	)
 	call:backup "%~f1" "%filework%" >nul || set "errbackup=1"
 )
-if %errbackup% neq 0 (call:saverrorlog "%~f1" "Access denied or file not exists." & 1>nul 2>&1 del /f /q %filework% & exit /b)
+if %errbackup% neq 0 (call:saverrorlog "%~f1" "Отказано в доступе или файл не существует." & 1>nul 2>&1 del /f /q %filework% & exit /b)
 jhead %sec-jpeg% %ft% "%~f1" 1>nul 2>nul
 call:savelog "%~f1" !jsize!
 if %multithread% equ 0 for %%a in ("%~f1") do (set /a "ImageSizeJPG+=%%~za" & set /a "TotalSizeJPG+=%jsize%")
@@ -741,9 +672,9 @@ if %multithread% neq 0 (
 			set /a "TotalSizePNG+=%%b" & set /a "ImageSizePNG+=%%c"
 		)
 	)
-	for /l %%i in (1,1,%threadjpg%) do  if exist "%logfile%jpg.%%i" (
+	for /l %%i in (1,1,%threadjpg%) do if exist "%logfile%jpg.%%i" (
 		for /f "usebackq tokens=1-5 delims=;" %%a in ("%logfile%jpg.%%i") do if "%%c" neq "" (
-				set /a "TotalSizeJPG+=%%b" & set /a "ImageSizeJPG+=%%c"
+			set /a "TotalSizeJPG+=%%b" & set /a "ImageSizeJPG+=%%c"
 		)
 	)
 )
@@ -762,13 +693,12 @@ call:division changeJPG 1024 100
 call:division percJPG 100 100
 
 :finmessage
-1>nul 2>&1 del /f /q "%logfile%*" "%countJPG%" "%countPNG%*" "%filelist%" "%filelisterr%"
 call:totalmsg PNG %png%
 call:totalmsg JPG %jpeg%
 echo  Started  at - %stime%
 echo  Finished at - %ftime%
 echo.
-echo  Optimization completed. Press Enter for exit.
+echo  Оптимизация изображений завершена. Для выхода из приложения нажмите на Enter.
 echo _______________________________________________________________________________
 if /i "%updatecheck%" equ "true" (
 	call:waitflag "%iculck%"
@@ -777,12 +707,13 @@ if /i "%updatecheck%" equ "true" (
 		call:readini "%iculog%"
 		if "%version%" neq "!ver!" (
 			set "isupdate="
-			for /f "tokens=* delims=" %%a in ('dlgmsgbox.exe "Image Catalyst" "Msg1" " " "New version exists %name% !ver!^|Do you want to update?" "Q4" "%errortimewait%" 2^>nul') do set "isupdate=%%~a"
+			for /f "tokens=* delims=" %%a in ('dlgmsgbox "Image Catalyst" "Msg1" " " "Доступна новая версия %name% !ver!^|Хотите обновить?" "Q4" "%errortimewait%" 2^>nul') do set "isupdate=%%~a"
 			if "!isupdate!" equ "6" start "" !url!
 		)
 		1>nul 2>&1 del /f /q "%iculog%"
 	)
 )
+1>nul 2>&1 del /f /q "%logfile%*" "%countJPG%" "%countPNG%*" "%filelist%*" "%filelisterr%*" "%iclock%"
 if exist "%tmppath%" 1>nul 2>&1 rd /s /q "%tmppath%"
 exit /b
 
@@ -815,35 +746,33 @@ for /f "usebackq tokens=1,* delims== " %%a in ("%~1") do (
 )
 exit /b
 
+:helpmsg
+title [Manual] %name% %version%
+1>&2 echo ───────────────────────────────────────────────────────────────────────────────
+1>&2 echo  Оптимизировать изображения формата PNG и JPEG можно следующими способами:
+1>&2 echo  1. перенесите файлы и/или папки с файлами на иконку "Image Catalyst.bat";
+1>&2 echo  2. запустите "Image Catalyst.bat" с параметрами "файл/папка с файлами".
+1>&2 echo.
+1>&2 echo  Настоятельно рекомендуется перед оптимизацией изучить справку ^(ReadMe.txt^)
+1>&2 echo  Для выхода из приложения нажмите на Enter.
+1>&2 echo ───────────────────────────────────────────────────────────────────────────────
+if exist "%tmppath%" 1>nul 2>&1 rd /s /q "%tmppath%"
+pause>nul & exit
+
 :errormsg
 title [Error] %name% %version%
 if exist "%tmppath%" 1>nul 2>&1 rd /s /q "%tmppath%"
-1>nul 2>&1 dlgmsgbox.exe "Image Catalyst" "Msg1" " " "%~1" "E0" "%errortimewait%"
+if "%~1" neq "" 1>nul 2>&1 dlgmsgbox "Image Catalyst" "Msg1" " " "%~1" "E0" "%errortimewait%"
 exit
 
-:Non-interlaced-Xtreme
+:PNG-Xtreme
 set "kp="
-truepng -i0 -zc8-9 -zm3-9 -zs0-3 -fe -fs:7 %nc% %na% -force "%~f1"
+truepng -i0 -zc9 -zm5-9 -zs0-3 -fe -fs:7 %nc% %na% -force "%~f1"
 for /f "tokens=2 delims=/f " %%j in ('pngout -l "%~f1"') do set "filter=%%j"
 if "!filter!" neq "0" set "kp=-kp"
 set "psize1=%~z1"
 pngout -s3 -k1 "%~f1"
 set "psize2=%~z1"
 if !psize1! neq !psize2! (for /l %%j in (1,1,8) do pngout -s3 -k1 -n%%j "%~f1") else (pngout -s0 -f6 -k1 -ks !kp! "%~f1")
-advdef -z4 "%~f1"
-exit /b
-
-:Non-interlaced-Advanced
-truepng -i0 -zc9 -zm8-9 -zs0-1 -f0,5 -fs:7 %nc% %na% -force "%~f1"
-advdef -z4 "%~f1"
-exit /b
-
-:Interlaced-Xtreme
-truepng -i1 -zc8-9 -zm3-9 -zs0-3 -fe -fs:7 %nc% %na% -force "%~f1"
-advdef -z4 "%~f1"
-exit /b
-
-:Interlaced-Advanced
-truepng -i1 -zc9 -zm8-9 -zs0-1 -f0,5 -fs:7 %nc% %na% -force "%~f1"
-advdef -z4 "%~f1"
+advdef -z3 "%~f1"
 exit /b

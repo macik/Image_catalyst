@@ -1,6 +1,6 @@
 #!/usr/bin/perl -ws
 # jpegrescan by Loren Merritt
-# Last updated: 2008-11-29 / Andrey Chernomyrdin 2012-04-28
+# Last updated: 2008-11-29
 # This code is public domain.
 
 sub jpegtran (@) {
@@ -15,14 +15,14 @@ sub jpegtran (@) {
 			);
 		}
 		else {
-			die "jpegtran exited with ERRORLEVEL=" . $? >> 8 . "\n";
+			print "jpegtran exited with ERRORLEVEL=" . ($? >> 8) . "\n";
 		}
 	}
 }
+
 # FIXME optimize order for either progressive transfer or decoding speed
 sub canonize {
 	my $txt = $prefix.$suffix.shift;
-	
 	$txt =~ s/\s*;\s*/;\n/g;
 	$txt =~ s/^\s*//;
 	$txt =~ s/ +/ /g;
@@ -39,25 +39,19 @@ sub canonize {
 		split( /\n/, $txt )
 	);
 }
+
 sub try {
 	my $txt = canonize(shift);
 	my $rc;
-	
-#	print $txt, "\n\n"; # debug
-	
 	if (exists $memo{$txt}) {
 		$rc = $memo{$txt};
 	}
 	else {
 		open( my $io, "> $ftmp") or die "Error create $ftmp file: $!\n";
-	
 		print $io $txt;
 		close $io;
-	
 		unlink $fout if (-f $fout);
-		
 		jpegtran("-scans", $ftmp, "-outfile", $fout, $jtmp);
-	
 		unless ($rc = -s $fout) {
 			die "jpegtran output file zero size";
 		}
@@ -66,17 +60,15 @@ sub try {
 		}
 		$memo{$txt} = $rc;
 	}
-
 	return $rc;
 }
+
 sub triesn {
 	my ($limit, @modes) = @_;
 	my $overshoot = 0;
 	my ($bmode, $bsize);
-	
 	foreach my $mode (@modes) {
 		my $s = try($mode);
-		
 		if (!$bsize || $s < $bsize) {
 			$bsize = $s;
 			$bmode = $mode;
@@ -88,20 +80,20 @@ sub triesn {
 	}
 	return $bmode;
 }
+
 sub gen_modes {
 	my $c = shift;
 	my $str = shift;
-	
 	map {
 		$_ => sprintf( "$c: 1 %d $str;$c: %d 63 $str;", $_, $_+1)
 	} 2,5,8,12,18;
 }
+
 sub try_splits {
 	my $c = shift;
 	my $str = shift;
 	my %n = gen_modes($c, $str);
 	my $mode = triesn(2, "$c: 1 63 $str;", @n{2,8,5});
-	
 	if ($mode ne $n{8}) {
 		return $mode;
 	}
@@ -113,22 +105,18 @@ sub try_splits {
 sub get_stderr {
 	my $code = shift;
 	my $rc;
-	
 	if (ref $code eq 'CODE') {
 		my $old_stderr;
-		
 		open $old_stderr, ">&", STDERR;
 		open STDERR, ">", $otmp;
 		$code->(@_);
 		open STDERR, ">&", $old_stderr;
 		$rc = do {
 			local $/;
-
 			open(my $io, $otmp);
 			<$io>;
 		};
-                unlink( $otmp ) if (-f $otmp);
-		
+		unlink( $otmp ) if (-f $otmp);
 	}
 	return $rc;
 }
@@ -137,19 +125,17 @@ sub get_stderr {
 unless (scalar @ARGV == 3) {
 	die "usage: jpegrescan /path/to/jpegtran.exe in.jpg out.jpg\ntries various progressive scan orders\n";
 }
+
 $fin = $ARGV[1];
 $fout = $ARGV[2];
 $verbose = 0;
 $quiet = 0;
 $strip = 0;
-
 $ftmp = "$fout-$$.scan";
 $jtmp = "$fout-$$.jpg";
 $otmp = "$fout-$$.out";
-
 undef $/;
 $|=1;
-
 $prefix = "";
 $suffix = "";
 
@@ -163,7 +149,6 @@ my $stderr = get_stderr(
 
 if ($stderr =~ /components=(\d+)/) {
 	my $rgb;
-	
 	if ($1 == 3) {
 		$rgb = 1;
 		# 012 helps very little
@@ -179,9 +164,14 @@ if ($stderr =~ /components=(\d+)/) {
 		$prefix = "0: 0 0 0 9;";
 	}
 	else {
-		die "File $fin is not RGB or grayscale\n"
-	}	
-	
+		# die "File $fin is not RGB or grayscale\n"
+		jpegtran("-copy", "all", "-progressive", $fin, $fout);
+		unlink(
+			$jtmp,
+			$ftmp,
+		);
+		exit
+	}
 	foreach my $c ( 0 .. $rgb ) {
 		my $max_i = $c ? 2 : 3;
 		my $ml = "";
@@ -196,7 +186,6 @@ if ($stderr =~ /components=(\d+)/) {
 		$refine =~ s/.* (0 \d);//;
 		$ac .= $refine . try_splits($c, $1);
 	}
-
 	# luma can make use of up to 3 refinement passes.
 	# chroma can make use of up to 2 refinement passes.
 	# refinement passes have some chance of being split (luma: 4%,4%,4%. chroma: 20%,8%) but the total bit gain is negligible.
@@ -204,17 +193,13 @@ if ($stderr =~ /components=(\d+)/) {
 	# I have no theoretical reason for this list of split positions, they're just the most common in practice.
 	# splitting into 3 ections is often slightly better, but the total number of bits saved is negligible.
 	# FIXME: penalize lots of refinement passes because it's slower to decode. if so, then also force overwrite if bigger than the input.
-
-
 	$prefix = "";
 	%memo = ();
 	$mode = $dc.$ac;
 	$mode = canonize($mode);
 	try($mode);
 	$size = $memo{$mode};
-	
 	print "\n$mode\n$size\n" unless ($quiet);
-	
 	unlink(
 		$jtmp,
 		$ftmp,

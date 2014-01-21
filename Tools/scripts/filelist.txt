@@ -1,0 +1,14 @@
+tools\config.ini
+tools\apps\advdef.exe
+tools\apps\deflopt.exe
+tools\apps\defluff.exe
+tools\apps\dlgmsgbox.exe
+tools\apps\jhead.exe
+tools\apps\jpegtran.exe
+tools\apps\perl.exe
+tools\apps\pngwolf.exe
+tools\apps\truepng.exe
+tools\scripts\filter.js
+tools\scripts\unfilter.js
+tools\scripts\xmlhttprequest.js
+tools\scripts\jpegrescan.pl
