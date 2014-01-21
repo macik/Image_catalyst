@@ -1,12 +1,11 @@
-#  #Image Catalyst v2.3 
-===================
+#  Image Catalyst v2.3 
+=======================
 
->  readme translation by macik   
 >  For latest version link see http://x128.ho.ua/update.ini 
 >  See http://rghost.ru/51256939 - for version 2.3 from 28.12.2014   
->  This utils pack distributed AS IS. To see certain licences or manuals see utilities officeal sites.
+>  This utils pack distributed AS IS. To see certain licenses or manuals see utilities official sites.
 
-Pack of Windows utils to optimize (lossless compression) graphic files (JPEG and PNF formats). 
+Pack of Windows utils to optimize (lossless compression) graphic files (JPEG and PNG formats). 
 Using it is as good practice if you work with web page graphics (sprites and stand alone files).
 
 Author of project - lorents and res2001.
@@ -15,11 +14,11 @@ Translating to english and uploading to GitHub - macik.
 
 Special thanks:
 
- * x128 - for stans alone app – JType;
+ * x128 - for stand alone app – JType;
  * madmasles - for DlgMsgBox util;
  * Andrey Chernomyrdin - for porting jpegrescan.pl for Windows;
 
-Authors not respinsible for any thing.
+Authors not responsible for any thing.
 Use it for your own risk. 
 
 Making backup is strongly recommended.
@@ -59,20 +58,20 @@ Manual:
  - You can add files for optimization queue this ways:
     * start "Image Catalyst.bat" and with «File browser» dialog choose graphic files;
     * drag`n`drop selected files and/or folders on "Image Catalyst.bat" shortcut;
-    * run "Image Catalyst.bat" with full path folder with graphic files (by default program process all subfolders).
+    * run "Image Catalyst.bat" with full path folder with graphic files (by default program process all sub-folders).
  - Then select output folder for optimized files (program retain existing folder structure). 
  You can use «overwrite» mode by pressing Cancel button in «Output folder selection» dialog 
- (in this case all original files will be overwrited with optimized ones).
+ (in this case all original files will be overwritten with optimized ones).
  - By default for PNG optimization multithreading is used (see `config.ini` to change this).
  - You can change base setting of project by edit `Tools\config.ini` file with any text editor.
- - You can not use special symbols like `&`, `^`, `%` `(`, `)`, `!` in filenames or paths.
+ - You can not use special symbols like `&`, `^`, `%` `(`, `)`, `!` in file names or paths.
 
 
 Types of PNG files:
 -------------------
 
   - Non-interlaced - standard mode.
-  - Interlaced - terlacing is a trade-off: it dramatically speeds up early rendering of large 
+  - Interlaced - interlacing is a trade-off: it dramatically speeds up early rendering of large 
   files (improves latency), but may increase file size (decrease throughput) for little gain, 
   particularly for small files.
 
@@ -81,7 +80,7 @@ Optimization modes for PNG:
 ---------------------------
 
   - Non-interlaced - standard mode. Continuous PNG loading;
-  - Interlaced - uses «pregressive loading» mode. And better user experience on slow connection or big data;
+  - Interlaced - uses «progressive loading» mode. And better user experience on slow connection or big data;
   - Default - optimized file and leave original mode intact.
 
 
@@ -113,5 +112,5 @@ Optimization modes for JPEG:
 Structure of JPEG files:
 ------------------------
 	
-	http://www.0x99.ru/Pages/jpeg/content/cnt-05.aspx (in russian)
+	http://www.0x99.ru/Pages/jpeg/content/cnt-05.aspx (in Russian)
 	http://www.sno.phy.queensu.ca/~phil/exiftool/TagNames/JPEG.html
