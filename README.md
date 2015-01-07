@@ -1,5 +1,8 @@
-#  Image Catalyst v2.3 
+#  Image Catalyst v2.4 
 =======================
+
+**Note!**
+I'm not the author of this project. And upload it here only for for convenience.
 
 >  For latest version link see http://x128.ho.ua/update.ini 
 >  See http://rghost.ru/51256939 - for version 2.3 from 28.12.2014   
@@ -8,9 +11,9 @@
 Pack of Windows utils to optimize (lossless compression) graphic files (JPEG and PNG formats). 
 Using it is as good practice if you work with web page graphics (sprites and stand alone files).
 
-Author of project - lorents and res2001.
-Consulting - x128.
-Translating to english and uploading to GitHub - macik.
+ * **Author of project - lorents and res2001.**
+ * Consulting - x128.
+ * Translating to english and uploading to GitHub - macik.
 
 Special thanks:
 

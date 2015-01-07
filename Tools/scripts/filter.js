@@ -3,15 +3,15 @@
 
 В параметрах или в stdin (см.именованные параметры) передаются пути к папкам и/или файлам.
 Переданные имена анализируются на существование в файловой системе. Если папки/файла не существует,
-то данный параметр игнорируется.
+то данный параметр игнорируется и в stderr выводится полный абсолютный путь к папке/файлу.
 Если в параметре передан путь к папке, то в этой папке в дальнейшую обрабатку
-поступает каждый файл, включая подпапки. 
-Все пути преобразуются в полный абсолютный путь к файлу.
+поступает каждый файл, включая подпапки. Все пути преобразуются в полный абсолютный путь к файлу.
 
 Путь к каталогу назначения (см./Outdir) и обрабатываемый файл проверяются на соответствие RegExp(rd) 
 для обнаружения спец.символов в именах файлов/каталогов, с которыми не корректно работают 
-объекты FSO. Такие файлы/каталоги пропускаются. Если спец.символ обнаружен в пути к каталогу 
-назначения, то скрипт завершается без обработки.
+объекты FSO. Такие файлы/каталоги пропускаются и в stderr выводится полный абсолютный путь к папке/файлу.
+Если спец.символ обнаружен в пути к каталогу назначения, то скрипт завершается без обработки и в 
+stderr выводится полный абсолютный путь к каталогу назначения.
 
 Полный путь к файлу делится на путь и имя файла и по отдельности проверяется соответствие 
 RegExp'у (re) на содержание в пути или имени спец.символов.
@@ -19,14 +19,9 @@ RegExp'у (re) на содержание в пути или имени спец.символов.
 Если нет соответствия RegExpу, то файл копируется в outdir (см.именованные параметры) и
 в stdout выводится полный абсолютный путь к скопированному файлу.
 
-Если в пути найдено соответствие, то в stderr пишется полный абсолютный путь к файлу.
+Если в пути/имени файла найдено соответствие, то в stderr пишется полный абсолютный путь к файлу.
 
-Если в имени файла найдено соответствие, то файл копируется в outdir (см.именованные параметры)
-с переименованием имени файла во временное, а в stdout выводится следующая информация:
-<полный абсолютный путь к переименованному файлу>	<имя оригинального файла>
-
-При задании путей, копирование файлов происходит с сохранением структуры каталогов
-относительно заданного.
+При задании путей, копирование файлов происходит с сохранением структуры каталогов относительно заданного.
 При копировании файлов/каталогов, если в каталоге назначения уже существует файл/каталог с таким 
 же имененм, то к имени копируемого файла/каталога добавляется текущий номер в формате:
 <имя файла/каталога>-NNNN.<расширение файла/каталога>
@@ -36,7 +31,8 @@ RegExp'у (re) на содержание в пути или имени спец.символов.
 /Outdir:<путь к каталогу назначения>	- в этот каталог будут копироаться файлы, если не
 	задан, то файлы никуда не копируются и обрабатываются на месте. 
 /IsStdIn:yes	- если задан, то пути/имена файлов читаются из stdin, а не из параметров.
-	
+/JPG:yes	- анализировать файлы jpg
+/PNG:yes	- анализировать файлы png
 */
 
 if(WScript.Arguments.length == 0) WScript.quit(-1);
@@ -45,8 +41,8 @@ var re = new RegExp("[^a-zа-я0-9\\.\\,~@#$_\\-=\\+\\\\/:[\\]{} ]","ig");
 //rd - RegExp для неподдерживаемых FSO символов: 
 // - \u2191
 var rd = new RegExp("[\\u2191]","ig");
-var ri = new RegExp("\\.(png|jp(g|e|eg))$","ig");
 var rp = new RegExp("\"","ig");
+var ri;
 //var rslesh = new RegExp("\\\\","ig");
 var basepath, basepathdos, ret, outfirst;
 var argn, outdirorig, outdir, isstdin;
@@ -56,16 +52,29 @@ argn = WScript.Arguments.named;
 if(argn.Exists("Outdir")) {
 	outdirorig = argn.Item("Outdir");
 //	WScript.echo(outdirorig);
-	if(outdirorig.match(rd)) WScript.quit(-1);
-	if(outdirorig.match(re)) WScript.quit(-2);
+	if(outdirorig.match(rd) || outdirorig.match(re)) {
+		WScript.StdErr.WriteLine(sDOS2Win(outdirorig,true));
+		WScript.quit(-1);
+	}
 	outdirorig = fso.GetAbsolutePathName(outdirorig);
 	if(!fso.FolderExists(outdirorig)) if(CreateTree(outdirorig)) WScript.quit(-3);
 }	
+
+var isjpg = false, ispng = false;
+if(argn.Exists("JPG")) 
+	if(argn.Item("JPG").toUpperCase()=="YES") isjpg=true;
+if(argn.Exists("PNG")) 
+	if(argn.Item("PNG").toUpperCase()=="YES") ispng=true;
+if(isjpg && ispng) ri = new RegExp("\\.(png|jp(g|e|eg))$","ig");
+else if(isjpg && !ispng) ri = new RegExp("\\.(jp(g|e|eg))$","ig");
+else if(ispng && !isjpg) ri = new RegExp("\\.png$","ig");
+else WScript.quit(0);
+
 if(argn.Exists("IsStdIn")) isstdin = argn.Item("IsStdIn").toUpperCase();
 ret = 0;
 if(isstdin=="YES") {
 	while (!WScript.StdIn.AtEndOfStream) {
-		//str = sDOS2Win(WScript.StdIn.ReadLine(),false);
+//		str = sDOS2Win(WScript.StdIn.ReadLine(),false);
 		basepath = WScript.StdIn.ReadLine().replace(rp,"");
 		WorkBasepath();
 	}
@@ -81,7 +90,10 @@ WScript.quit(ret);
 function WorkBasepath() {
 //	WScript.echo(basepath);
 //	WScript.echo(GetCharCodeHexString(basepath));
-	if(basepath.match(rd)) return 0;
+	if(basepath.match(rd)) {
+		WScript.StdErr.WriteLine(sDOS2Win(basepath,true));
+		return 0;
+	}
 	basepath = fso.GetAbsolutePathName(basepath);
 	if(fso.FileExists(basepath) && basepath.match(ri)) {
 		ret += work(basepath);
@@ -92,6 +104,10 @@ function WorkBasepath() {
 			outfirst = fso.GetBaseName(basepath);
 			if(fso.GetExtensionName(basepath)!="") outfirst += "." + fso.GetExtensionName(basepath);
 			outfirst = getFolderName(fso.BuildPath(outdirorig,outfirst));
+			if(outfirst=="") {
+				WScript.StdErr.WriteLine(sDOS2Win(basepath,true));
+				return 0;
+			}
 		}
 		ret += DirWork(basepath);
 	}
@@ -132,20 +148,21 @@ function CreateTree(p) {
 }
 
 /*
-Обрабатывает полный путь к файлу, переданный в параметре по алгоритму описанному в самом начале.
+Обрабатывает полный путь к файлу, переданный в параметре по алгоритму описанному в шапке.
 */
 function work(str) {
-	var str, p, ret, tmpfile, tp, tf;
-	ret = 0; tmpfile = "";
-	if(str.match(rd)) return 0;
+	var p, tp, tf;
+	if(str.match(rd)) {
+		WScript.StdErr.WriteLine(sDOS2Win(basepath,true));
+		return 0;
+	}
 	p = fso.GetParentFolderName(str);
 	if(outdirorig.toUpperCase() == fso.GetAbsolutePathName(p).toUpperCase()) 
 		outdir = "";
 	else
 		outdir = outdirorig;
-	if(!p.match(re) || str.match(rd)) {
+	if(!str.match(re) && !str.match(rd)) {
 		tf = fso.GetFileName(str);
-		tmpfile = checkFileName(tf);
 		if(outdir!="") {
 			//1.Если базовый каталог == обрабатываемому файлу
 			if(str.toUpperCase()==basepath.toUpperCase()) {
@@ -157,22 +174,22 @@ function work(str) {
 				//	с права, то что получилось в 2.1.
 				tp = outfirst + p.substr(basepath.length);
 				//2.3.Создаем в outdir структуру каталогов такую же как в п.2.2
-				if(CreateTree(tp)) return 0;
+				if(CreateTree(tp)) {
+					WScript.StdErr.WriteLine(sDOS2Win(str,true));
+					return 0;
+				}
 				//2.4.Копируем файл по созданному в п.2.3. пути
 			}
-			filecopy(str,fso.BuildPath(tp,tmpfile));
+			filecopy(str,fso.BuildPath(tp,tf));
 		} else {
 			tp = p;
-			if(tmpfile!=tf)
-				filemove(str,fso.BuildPath(tp,tmpfile));
 		}
-		if(tmpfile==tf) 
-			WScript.StdOut.WriteLine(sDOS2Win(fso.BuildPath(tp,tmpfile),true));
-		else
-			WScript.StdOut.WriteLine(sDOS2Win(fso.BuildPath(tp,tmpfile)+"\t"+tf,true));
-		ret = 1;
-	} else WScript.StdErr.WriteLine(sDOS2Win(str,true));
-	return(ret);
+		WScript.StdOut.WriteLine(sDOS2Win(fso.BuildPath(tp,tf),true));
+		return 1;
+	} else {
+		WScript.StdErr.WriteLine(sDOS2Win(str,true));
+		return 0;
+	}
 }
 
 /*
